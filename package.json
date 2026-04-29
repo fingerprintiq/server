@@ -1,6 +1,6 @@
 {
   "name": "@fingerprintiq/server",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Server-side request fingerprinting middleware — classify API callers as browsers, AI agents, CLI tools, or bots",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

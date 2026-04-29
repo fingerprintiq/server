@@ -4,7 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@fingerprintiq/server.svg)](https://www.npmjs.com/package/@fingerprintiq/server)
 [![license](https://img.shields.io/npm/l/@fingerprintiq/server.svg)](./LICENSE)
 
-Server-side request fingerprinting middleware. Classify every API caller as a browser, AI agent, CLI tool, SDK client, or bot — without requiring the caller to identify themselves.
+Server-side request fingerprinting middleware. Classify every API caller as a browser, AI agent, CLI tool, SDK client, or bot without requiring the caller to identify themselves.
 
 - **Docs**: [docs.fingerprintiq.com/guides/server-side](https://docs.fingerprintiq.com/guides/server-side)
 - **npm**: [npmjs.com/package/@fingerprintiq/server](https://www.npmjs.com/package/@fingerprintiq/server)
@@ -57,6 +57,31 @@ app.get('/api/data', (req, res) => {
 
 By default, middleware runs in background mode so FingerprintIQ never adds network latency to the customer request path. Use blocking mode only when you need the result before returning a response.
 
+## Performance Controls
+
+Sentinel is optimized for background collection. Common noisy endpoints such as `/health`, `/api/health`, `/api/auth/ok`, and OpenAPI JSON are sent as aggregate-only events by default, so dashboards still show volume without storing a raw request row for every poll.
+
+```typescript
+app.use('/api/*', sentinel({
+  apiKey: 'fiq_live_...',
+  mode: 'background',        // default
+  timeout: 750,              // aborts the background call quickly
+  rawSampleRate: 0.25,       // store raw request rows for 25% of non-noisy traffic
+  aggregateOnlyPaths: [
+    '/api/widgets',
+    /^\/api\/status\//,
+  ],
+  ignorePaths: [
+    '/api/internal/heartbeat',
+  ],
+}));
+```
+
+- `sampleRate` controls how often the middleware calls FingerprintIQ at all.
+- `rawSampleRate` keeps aggregate stats for every inspected request but samples raw request logs.
+- `aggregateOnly` or `aggregateOnlyPaths` keeps dashboards live while minimizing D1 writes.
+- `ignorePaths` skips FingerprintIQ entirely for routes you never want measured.
+
 ## Blocking Mode
 
 ```typescript
@@ -85,8 +110,10 @@ import { createSentinel } from '@fingerprintiq/server';
 const sentinel = createSentinel({ apiKey: 'fiq_live_...' });
 
 const result = await sentinel.inspect(request);
-console.log(result.callerType);       // "AI_AGENT"
-console.log(result.callerConfidence); // 0.85
+if (result) {
+  console.log(result.callerType);       // "AI_AGENT"
+  console.log(result.callerConfidence); // 0.85
+}
 ```
 
 ## Caller Types

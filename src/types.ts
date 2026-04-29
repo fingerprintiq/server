@@ -1,5 +1,6 @@
 export type CallerType = "BROWSER_HUMAN" | "BROWSER_AUTOMATED" | "AI_AGENT" | "CLI_TOOL" | "SDK_CLIENT" | "BOT_SCRAPER" | "UNKNOWN";
 export type SentinelMode = "blocking" | "background";
+export type SentinelPathMatcher = string | RegExp | ((path: string, request: Request) => boolean);
 
 export interface SentinelConfig {
   apiKey: string;
@@ -8,6 +9,11 @@ export interface SentinelConfig {
   rateLimit?: Partial<Record<CallerType, number>>;
   timeout?: number;
   mode?: SentinelMode;
+  sampleRate?: number;
+  rawSampleRate?: number;
+  aggregateOnly?: boolean;
+  aggregateOnlyPaths?: SentinelPathMatcher[];
+  ignorePaths?: SentinelPathMatcher[];
   onResult?: (result: SentinelResult, request: Request) => void | Promise<void>;
   onError?: (error: unknown, request: Request) => void | Promise<void>;
 }
