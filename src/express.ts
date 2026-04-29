@@ -1,6 +1,7 @@
 import type { Request as ExpressRequest, Response, NextFunction, RequestHandler } from "express";
 import type { SentinelConfig, SentinelResult } from "./types";
 import { createSentinel } from "./sentinel";
+import { inspectBlocking, inspectInBackground } from "./middleware";
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -10,7 +11,9 @@ declare module "express-serve-static-core" {
 
 export function sentinel(config: SentinelConfig): RequestHandler {
   const client = createSentinel(config);
+  const mode = config.mode ?? "background";
   return async (req: ExpressRequest, _res: Response, next: NextFunction) => {
+    let webRequest: Request;
     try {
       const protocol = (req.headers["x-forwarded-proto"] as string | undefined) ?? "http";
       const host = req.headers.host ?? "localhost";
@@ -26,15 +29,24 @@ export function sentinel(config: SentinelConfig): RequestHandler {
         }
       }
 
-      const webRequest = new Request(url, {
+      webRequest = new Request(url, {
         method: req.method,
         headers,
       });
-
-      req.sentinel = await client.inspect(webRequest);
     } catch {
       req.sentinel = null;
+      next();
+      return;
     }
+
+    if (mode === "background") {
+      req.sentinel = null;
+      void inspectInBackground(client, config, webRequest);
+      next();
+      return;
+    }
+
+    req.sentinel = await inspectBlocking(client, config, webRequest);
     next();
   };
 }

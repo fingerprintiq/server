@@ -22,6 +22,16 @@ function listen(app: express.Express): Promise<{ url: string; close: () => void 
   });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("@fingerprintiq/server/express", () => {
   beforeEach(() => {
     mockInspect.mockReset();
@@ -35,7 +45,7 @@ describe("@fingerprintiq/server/express", () => {
     });
 
     const app = express();
-    app.use(sentinel({ apiKey: "fiq_live_test" }));
+    app.use(sentinel({ apiKey: "fiq_live_test", mode: "blocking" }));
     app.get("/probe", (req, res) => {
       res.json({ sentinel: (req as express.Request & { sentinel: unknown }).sentinel });
     });
@@ -58,7 +68,7 @@ describe("@fingerprintiq/server/express", () => {
     mockInspect.mockRejectedValue(new Error("network"));
 
     const app = express();
-    app.use(sentinel({ apiKey: "fiq_live_test" }));
+    app.use(sentinel({ apiKey: "fiq_live_test", mode: "blocking" }));
     app.get("/probe", (req, res) => {
       res.json({ sentinel: (req as express.Request & { sentinel: unknown }).sentinel });
     });
@@ -81,7 +91,7 @@ describe("@fingerprintiq/server/express", () => {
     });
 
     const app = express();
-    app.use(sentinel({ apiKey: "fiq_live_test" }));
+    app.use(sentinel({ apiKey: "fiq_live_test", mode: "blocking" }));
     app.get("/api/data", (_req, res) => {
       res.json({ ok: true });
     });
@@ -97,6 +107,41 @@ describe("@fingerprintiq/server/express", () => {
       expect(forwardedRequest.method).toBe("GET");
       expect(new URL(forwardedRequest.url).pathname).toBe("/api/data");
       expect(forwardedRequest.headers.get("user-agent")).toBe("ClaudeBot");
+    } finally {
+      server.close();
+    }
+  });
+
+  it("defaults to background inspection without blocking the response", async () => {
+    const pending = deferred<{
+      callerType: string;
+      confidence: number;
+      reasons: string[];
+    }>();
+    const onResult = vi.fn();
+    mockInspect.mockReturnValue(pending.promise);
+
+    const app = express();
+    app.use(sentinel({ apiKey: "fiq_live_test", onResult }));
+    app.get("/probe", (req, res) => {
+      res.json({ sentinel: (req as express.Request & { sentinel: unknown }).sentinel });
+    });
+
+    const server = await listen(app);
+    try {
+      const response = await fetch(`${server.url}/probe`);
+      const body = (await response.json()) as { sentinel: unknown };
+      expect(body.sentinel).toBe(null);
+      expect(mockInspect).toHaveBeenCalledTimes(1);
+      expect(onResult).not.toHaveBeenCalled();
+
+      const result = {
+        callerType: "ai-agent",
+        confidence: 0.91,
+        reasons: ["user-agent-match"],
+      };
+      pending.resolve(result);
+      await vi.waitFor(() => expect(onResult).toHaveBeenCalledWith(result, expect.any(Request)));
     } finally {
       server.close();
     }

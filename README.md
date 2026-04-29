@@ -26,13 +26,12 @@ const app = new Hono();
 
 app.use('/api/*', sentinel({
   apiKey: 'fiq_live_...',
-  classify: true,
+  onResult: (caller, request) => {
+    console.log(caller.callerType, new URL(request.url).pathname);
+  },
 }));
 
 app.get('/api/data', (c) => {
-  const caller = c.get('sentinel');
-  console.log(caller?.callerType);  // "AI_AGENT", "CLI_TOOL", "BROWSER_HUMAN", etc.
-  console.log(caller?.classification.framework); // "langchain", "crewai", etc.
   return c.json({ ok: true });
 });
 ```
@@ -44,16 +43,39 @@ import express from 'express';
 import { sentinel } from '@fingerprintiq/server/express';
 
 const app = express();
-app.use(sentinel({ apiKey: 'fiq_live_...' }));
+app.use(sentinel({
+  apiKey: 'fiq_live_...',
+  onResult: (caller, request) => {
+    console.log(caller.callerType, new URL(request.url).pathname);
+  },
+}));
 
 app.get('/api/data', (req, res) => {
-  const caller = req.sentinel;
-  console.log(caller?.callerType);
   res.json({ ok: true });
 });
 ```
 
-Both middlewares share the same classification engine — pick whichever matches your stack.
+By default, middleware runs in background mode so FingerprintIQ never adds network latency to the customer request path. Use blocking mode only when you need the result before returning a response.
+
+## Blocking Mode
+
+```typescript
+app.use('/protected/*', sentinel({
+  apiKey: 'fiq_live_...',
+  mode: 'blocking',
+  timeout: 1000,
+}));
+
+app.get('/protected/data', (c) => {
+  const caller = c.get('sentinel');
+  if (caller?.callerType === 'BOT_SCRAPER') {
+    return c.json({ error: 'blocked' }, 403);
+  }
+  return c.json({ ok: true });
+});
+```
+
+Both middlewares share the same classification engine. Background mode keeps API handlers fast; blocking mode sets `c.get('sentinel')` / `req.sentinel` for inline enforcement.
 
 ## Programmatic Usage
 

@@ -1,4 +1,5 @@
 export type CallerType = "BROWSER_HUMAN" | "BROWSER_AUTOMATED" | "AI_AGENT" | "CLI_TOOL" | "SDK_CLIENT" | "BOT_SCRAPER" | "UNKNOWN";
+export type SentinelMode = "blocking" | "background";
 
 export interface SentinelConfig {
   apiKey: string;
@@ -6,6 +7,9 @@ export interface SentinelConfig {
   classify?: boolean;
   rateLimit?: Partial<Record<CallerType, number>>;
   timeout?: number;
+  mode?: SentinelMode;
+  onResult?: (result: SentinelResult, request: Request) => void | Promise<void>;
+  onError?: (error: unknown, request: Request) => void | Promise<void>;
 }
 
 export interface SentinelResult {

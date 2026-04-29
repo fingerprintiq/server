@@ -1,10 +1,11 @@
 import type { SentinelConfig, SentinelResult } from "./types";
 
 const DEFAULT_ENDPOINT = "https://fingerprintiq.com/v1/sentinel/inspect";
+const DEFAULT_TIMEOUT_MS = 1000;
 
 export function createSentinel(config: SentinelConfig) {
   const endpoint = config.endpoint ?? DEFAULT_ENDPOINT;
-  const timeout = config.timeout ?? 5000;
+  const timeout = config.timeout ?? DEFAULT_TIMEOUT_MS;
 
   return {
     async inspect(request: Request): Promise<SentinelResult> {
